@@ -232,6 +232,5 @@ All topics start with `smartgrid/`. The names are in French because that is what
 - The anomaly detection is simple (thresholds and a running average), not a real fault detection model.
 
 ## Authors
-
-Saidane Mohamed Elamine
-Bensaleh Merwane
+- Saidane Mohamed Elamine.
+- Bensaleh Merwane
