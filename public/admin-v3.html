@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Grid — Admin Dashboard v3</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050508;
+            --bg2: #09090f;
+            --card: rgba(255,255,255,0.025);
+            --card-h: rgba(255,255,255,0.045);
+            --border: rgba(255,255,255,0.06);
+            --border-h: rgba(255,255,255,0.12);
+            --t1: #e4e8f0;
+            --t2: #6b7394;
+            --t3: #3d4460;
+            --blue: #5b8af5;
+            --cyan: #22d3ee;
+            --green: #34d399;
+            --yellow: #fbbf24;
+            --orange: #fb923c;
+            --red: #f87171;
+            --purple: #a78bfa;
+            --pink: #f472b6;
+            --r: 16px;
+            --rs: 10px;
+            --glow-blue: rgba(91,138,245,0.15);
+            --glow-cyan: rgba(34,211,238,0.12);
+            --glow-green: rgba(52,211,153,0.12);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--t1);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 15% 20%, rgba(91,138,245,0.04) 0%, transparent 70%),
+                radial-gradient(ellipse 500px 500px at 85% 80%, rgba(34,211,238,0.03) 0%, transparent 70%),
+                radial-gradient(ellipse 400px 300px at 50% 50%, rgba(167,139,250,0.02) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .app { position: relative; z-index: 1; padding: 16px 20px; max-width: 1520px; margin: 0 auto; }
+        .header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .header-left { display: flex; align-items: center; gap: 14px; }
+        .logo {
+            width: 42px; height: 42px;
+            background: linear-gradient(135deg, #5b8af5, #22d3ee);
+            border-radius: 12px;
+            display: grid; place-items: center;
+            font-size: 20px;
+            box-shadow: 0 0 24px rgba(91,138,245,0.25), inset 0 1px 0 rgba(255,255,255,0.15);
+        }
+        .header-title h1 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.5px; }
+        .header-title p { font-size: 0.72rem; color: var(--t2); font-weight: 400; }
+        .header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .badge {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 14px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.72rem; font-weight: 500; color: var(--t2);
+        }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); transition: 0.4s; }
+        .dot.on { background: var(--green); box-shadow: 0 0 10px var(--green); }
+        .mode-badge {
+            padding: 5px 16px; border-radius: 20px;
+            font-size: 0.76rem; font-weight: 600;
+            background: rgba(91,138,245,0.1);
+            color: var(--blue);
+            border: 1px solid rgba(91,138,245,0.2);
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; }
+        .c2 { grid-column: span 2; }
+        .c3 { grid-column: span 3; }
+        .c4 { grid-column: span 4; }
+        .c5 { grid-column: span 5; }
+        .c6 { grid-column: span 6; }
+        .c7 { grid-column: span 7; }
+        .c8 { grid-column: span 8; }
+        .c12 { grid-column: span 12; }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--r);
+            padding: 18px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+        }
+        .card:hover { background: var(--card-h); border-color: var(--border-h); }
+        .card-h {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 14px;
+        }
+        .card-h h2 {
+            font-size: 0.72rem; font-weight: 600;
+            color: var(--t2); text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .card-h .topic {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.58rem;
+            color: var(--t3);
+            background: rgba(255,255,255,0.03);
+            padding: 2px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+        .mv {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 1.9rem; font-weight: 700; line-height: 1;
+        }
+        .mu { font-size: 0.68rem; color: var(--t3); margin-top: 3px; }
+        .mbar {
+            height: 3px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 2px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+        .mbar-f {
+            height: 100%; border-radius: 2px;
+            transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .ldr-d { display: flex; align-items: center; gap: 16px; }
+        .ldr-icon { font-size: 2.4rem; transition: 0.5s; }
+        .ldr-v { font-family: 'IBM Plex Mono', monospace; font-size: 1.8rem; font-weight: 700; }
+        .ldr-m {
+            display: inline-block; padding: 3px 10px; border-radius: 6px;
+            font-size: 0.68rem; font-weight: 600; text-transform: uppercase; margin-top: 4px;
+        }
+        .ldr-m.jour { background: rgba(251,191,36,0.12); color: var(--yellow); }
+        .ldr-m.crep { background: rgba(251,146,60,0.12); color: var(--orange); }
+        .ldr-m.nuit { background: rgba(167,139,250,0.12); color: var(--purple); }
+        .ldr-bar {
+            width: 100%; height: 5px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 3px; margin-top: 12px; overflow: hidden;
+        }
+        .ldr-bar-f { height: 100%; border-radius: 3px; transition: 0.6s; background: linear-gradient(90deg, var(--purple), var(--yellow)); }
+        .ldr-labels { display: flex; justify-content: space-between; font-size: 0.58rem; color: var(--t3); margin-top: 3px; }
+        .section-title {
+            grid-column: span 12;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--t3);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            padding: 8px 0 0 4px;
+            border-top: 1px solid var(--border);
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-title span { font-size: 0.9rem; }
+        .sc-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+        .sc-btn {
+            padding: 9px 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--rs);
+            background: rgba(255,255,255,0.02);
+            color: var(--t1);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.76rem; font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            white-space: nowrap;
+        }
+        .sc-btn:hover { background: rgba(255,255,255,0.06); border-color: var(--border-h); transform: translateY(-1px); }
+        .sc-btn.active { border-color: var(--blue); background: rgba(91,138,245,0.12); color: var(--blue); box-shadow: 0 0 16px rgba(91,138,245,0.08); }
+        .sc-btn.green.active { border-color: var(--green); background: rgba(52,211,153,0.1); color: var(--green); box-shadow: 0 0 16px rgba(52,211,153,0.08); }
+        .sc-btn.yellow.active { border-color: var(--yellow); background: rgba(251,191,36,0.1); color: var(--yellow); }
+        .sc-btn.orange.active { border-color: var(--orange); background: rgba(251,146,60,0.1); color: var(--orange); }
+        .sc-btn.red.active { border-color: var(--red); background: rgba(248,113,113,0.1); color: var(--red); }
+        .sc-btn.purple.active { border-color: var(--purple); background: rgba(167,139,250,0.1); color: var(--purple); }
+        .mode-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+        .mode-label { font-size: 0.68rem; color: var(--t3); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 14px; margin-bottom: 6px; }
+        .evt-time-row {
+            display: flex; align-items: center; gap: 10px; margin-top: 12px;
+            padding: 10px 14px;
+            background: rgba(167,139,250,0.04);
+            border: 1px solid rgba(167,139,250,0.1);
+            border-radius: var(--rs);
+        }
+        .evt-time-row label {
+            font-size: 0.72rem; color: var(--t2); font-weight: 500; min-width: 90px;
+        }
+        .evt-time-input {
+            padding: 6px 12px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--t1);
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem;
+            outline: none;
+            width: 90px;
+            text-align: center;
+        }
+        .evt-time-input:focus { border-color: var(--purple); }
+        .evt-note {
+            font-size: 0.64rem; color: var(--t3); margin-top: 8px; line-height: 1.5;
+            padding: 6px 10px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 6px;
+            border-left: 2px solid var(--purple);
+        }
+        .comp-row {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 16px;
+            background: rgba(255,255,255,0.015);
+            border: 1px solid var(--border);
+            border-radius: var(--rs);
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+        .comp-row.on {
+            border-color: rgba(52,211,153,0.25);
+            background: rgba(52,211,153,0.03);
+        }
+        .comp-name { font-size: 0.8rem; font-weight: 500; min-width: 140px; }
+        .comp-topic {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.56rem; color: var(--t3);
+            display: block; margin-top: 1px;
+        }
+        .comp-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: var(--t3); transition: 0.3s; flex-shrink: 0;
+        }
+        .comp-row.on .comp-dot { background: var(--green); box-shadow: 0 0 10px var(--green); }
+        .comp-toggle {
+            padding: 5px 14px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: transparent;
+            color: var(--t2);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.72rem;
+            cursor: pointer;
+            transition: 0.2s;
+            min-width: 44px;
+        }
+        .comp-toggle:hover { background: rgba(255,255,255,0.05); }
+        .comp-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            height: 4px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 2px;
+            outline: none;
+        }
+        .comp-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: var(--blue);
+            cursor: pointer;
+            border: 2px solid var(--bg);
+            box-shadow: 0 0 8px rgba(91,138,245,0.3);
+        }
+        .comp-pct {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.8rem; font-weight: 600;
+            min-width: 40px; text-align: right;
+            color: var(--cyan);
+        }
+        .env-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .env-item {
+            padding: 14px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--border);
+            border-radius: var(--rs);
+            transition: 0.3s;
+        }
+        .env-item:hover { background: rgba(255,255,255,0.04); }
+        .env-label {
+            font-size: 0.66rem; color: var(--t2);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+        }
+        .env-value {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 1.5rem; font-weight: 700;
+        }
+        .env-unit { font-size: 0.65rem; color: var(--t3); margin-top: 2px; }
+        .env-topic-label {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.52rem; color: var(--t3);
+            margin-top: 6px;
+            opacity: 0.6;
+        }
+        .env-alert {
+            margin-top: 10px;
+            padding: 8px 12px;
+            border-radius: var(--rs);
+            font-size: 0.72rem;
+            font-weight: 500;
+            display: none;
+        }
+        .env-alert.show { display: flex; align-items: center; gap: 8px; }
+        .env-alert.warn { background: rgba(251,191,36,0.1); color: var(--yellow); border: 1px solid rgba(251,191,36,0.15); }
+        .env-alert.danger { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.15); }
+        .env-alert.info { background: rgba(91,138,245,0.1); color: var(--blue); border: 1px solid rgba(91,138,245,0.15); }
+        .nrj-header { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+        .nrj-source { font-family: 'IBM Plex Mono', monospace; font-size: 1.4rem; font-weight: 700; }
+        .nrj-source.solar { color: var(--yellow); }
+        .nrj-source.grid { color: var(--blue); }
+        .nrj-badge {
+            display: inline-block; padding: 3px 10px; border-radius: 6px;
+            font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+        }
+        .nrj-badge.solar { background: rgba(251,191,36,0.1); color: var(--yellow); }
+        .nrj-badge.grid { background: rgba(91,138,245,0.1); color: var(--blue); }
+        .nrj-bat { display: flex; align-items: center; gap: 10px; margin: 12px 0; }
+        .nrj-bat-icon { font-size: 1.5rem; }
+        .nrj-bat-v { font-family: 'IBM Plex Mono', monospace; font-size: 1.3rem; font-weight: 700; color: var(--green); }
+        .nrj-bat-status { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
+        .nrj-bat-status.pleine { background: rgba(52,211,153,0.12); color: var(--green); }
+        .nrj-bat-status.moyenne { background: rgba(34,211,238,0.12); color: var(--cyan); }
+        .nrj-bat-status.faible { background: rgba(251,146,60,0.12); color: var(--orange); }
+        .nrj-bat-status.vide { background: rgba(248,113,113,0.12); color: var(--red); }
+        .nrj-bar { height: 5px; background: rgba(255,255,255,0.04); border-radius: 3px; overflow: hidden; margin-bottom: 14px; }
+        .nrj-bar-f { height: 100%; border-radius: 3px; transition: 0.6s; background: linear-gradient(90deg, var(--red), var(--yellow), var(--green)); }
+        .nrj-ctrl { display: flex; gap: 6px; flex-wrap: wrap; }
+        .nrj-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--rs);
+            background: rgba(255,255,255,0.02);
+            color: var(--t1);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.76rem; font-weight: 500;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .nrj-btn:hover { background: rgba(255,255,255,0.06); }
+        .nrj-btn.active-auto { border-color: var(--green); background: rgba(52,211,153,0.1); color: var(--green); }
+        .nrj-btn.active-solar { border-color: var(--yellow); background: rgba(251,191,36,0.1); color: var(--yellow); }
+        .nrj-btn.active-grid { border-color: var(--blue); background: rgba(91,138,245,0.1); color: var(--blue); }
+        .nrj-sep { width: 1px; background: var(--border); margin: 0 4px; }
+        .nrj-mode-label { font-size: 0.66rem; color: var(--t3); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .console {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border);
+            border-radius: var(--rs);
+            padding: 12px;
+            height: 220px;
+            overflow-y: auto;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 0.66rem;
+            line-height: 1.9;
+        }
+        body { scrollbar-width: none; -ms-overflow-style: none; }
+        ::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
+        .l-t { color: var(--t3); }
+        .l-i { color: var(--cyan); }
+        .l-o { color: var(--yellow); }
+        .l-s { color: var(--purple); }
+        .l-e { color: var(--red); }
+        @media(max-width: 1100px) {
+            .c3, .c4, .c5 { grid-column: span 6; }
+            .c7, .c8 { grid-column: span 12; }
+        }
+        @media(max-width: 700px) {
+            .app { padding: 10px; }
+            .c2, .c3, .c4, .c5, .c6, .c7, .c8 { grid-column: span 12; }
+            .env-grid { grid-template-columns: 1fr; }
+            .sc-grid, .nrj-ctrl { flex-direction: column; }
+            .comp-name { min-width: 100px; font-size: 0.72rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="grid">
+        <div class="section-title">Electrical Measurements (INA219) & Luminosity</div>
+
+        <div class="card c3">
+            <div class="card-h"><h2>Voltage</h2><span class="topic">smartgrid/voltage</span></div>
+            <div class="mv" id="voltage" style="color:var(--blue)">--</div>
+            <div class="mu">Volts (V)</div>
+            <div class="mbar"><div class="mbar-f" id="voltBar" style="width:0%;background:var(--blue)"></div></div>
+        </div>
+        <div class="card c3">
+            <div class="card-h"><h2>Current</h2><span class="topic">smartgrid/current</span></div>
+            <div class="mv" id="current" style="color:var(--cyan)">--</div>
+            <div class="mu">Milliamperes (mA)</div>
+            <div class="mbar"><div class="mbar-f" id="curBar" style="width:0%;background:var(--cyan)"></div></div>
+        </div>
+        <div class="card c3">
+            <div class="card-h"><h2>Power</h2><span class="topic">smartgrid/power</span></div>
+            <div class="mv" id="power" style="color:var(--green)">--</div>
+            <div class="mu">Milliwatts (mW)</div>
+            <div class="mbar"><div class="mbar-f" id="pwrBar" style="width:0%;background:var(--green)"></div></div>
+        </div>
+        <div class="card c3">
+            <div class="card-h"><h2>Luminosity (LDR)</h2><span class="topic">smartgrid/ldr</span></div>
+            <div class="ldr-d">
+                <div class="ldr-icon" id="ldrIco"></div>
+                <div>
+                    <div class="ldr-v" id="ldrVal">--</div>
+                    <div class="ldr-m nuit" id="ldrMode">--</div>
+                </div>
+            </div>
+            <div class="ldr-bar"><div class="ldr-bar-f" id="ldrBar" style="width:0%"></div></div>
+            <div class="ldr-labels"><span>Bright</span><span>Dark</span></div>
+        </div>
+        <div class="section-title">Environmental Sensor (BME680)</div>
+
+        <div class="card c6">
+            <div class="card-h"><h2>Environmental Data</h2><span class="topic">smartgrid/meteo/*</span></div>
+            <div class="env-grid">
+                <div class="env-item">
+                    <div class="env-label">Temperature</div>
+                    <div class="env-value" id="envTemp" style="color:var(--orange)">--</div>
+                    <div class="env-unit">°C</div>
+                    <div class="env-topic-label">smartgrid/meteo/temperature</div>
+                </div>
+                <div class="env-item">
+                    <div class="env-label">Humidity</div>
+                    <div class="env-value" id="envHumid" style="color:var(--cyan)">--</div>
+                    <div class="env-unit">%</div>
+                    <div class="env-topic-label">smartgrid/meteo/humidite</div>
+                </div>
+                <div class="env-item">
+                    <div class="env-label">Pressure</div>
+                    <div class="env-value" id="envPress" style="color:var(--blue)">--</div>
+                    <div class="env-unit">hPa</div>
+                    <div class="env-topic-label">smartgrid/meteo/pression</div>
+                </div>
+                <div class="env-item">
+                    <div class="env-label">Air Quality (Gas)</div>
+                    <div class="env-value" id="envGaz" style="color:var(--green)">--</div>
+                    <div class="env-unit">kΩ</div>
+                    <div class="env-topic-label">smartgrid/meteo/gaz</div>
+                </div>
+            </div>
+            <div class="env-alert warn" id="envAlert">
+                <span id="envAlertIcon"></span>
+                <span id="envAlertText">--</span>
+            </div>
+        </div>
+        <div class="card c6">
+            <div class="card-h"><h2>Energy Source</h2><span class="topic">smartgrid/energy/*</span></div>
+            <div class="nrj-header">
+                <div>
+                    <div class="nrj-source grid" id="nrjSource">GRID</div>
+                    <div class="nrj-badge grid" id="nrjBadge">NC — 12V Grid Power</div>
+                </div>
+            </div>
+            <div class="nrj-bat">
+                <div class="nrj-bat-v" id="nrjBatV">--V</div>
+                <div class="nrj-bat-status moyenne" id="nrjBatStatus">--</div>
+            </div>
+            <div class="nrj-bar"><div class="nrj-bar-f" id="nrjBatBar" style="width:0%"></div></div>
+            <div class="nrj-mode-label">Switching Mode</div>
+            <div class="nrj-ctrl">
+                <button class="nrj-btn active-auto" id="btnEnergyAuto" onclick="setEnergyMode('AUTO')">Auto</button>
+                <button class="nrj-btn" id="btnEnergyManuel" onclick="setEnergyMode('MANUEL')">Manual</button>
+                <div class="nrj-sep"></div>
+                <button class="nrj-btn" id="btnSelectSolar" onclick="selectSource('SOLAR')" disabled>Solar (NO)</button>
+                <button class="nrj-btn" id="btnSelectGrid" onclick="selectSource('GRID')" disabled>Grid (NC)</button>
+            </div>
+        </div>
+        <div class="section-title">Scenarios (5) & Control</div>
+
+        <div class="card c7">
+            <div class="card-h"><h2>Scenario Selection</h2><span class="topic">smartgrid/scenario</span></div>
+            <div class="sc-grid">
+                <button class="sc-btn" onclick="setScenario('MANUEL')">Manual</button>
+                <button class="sc-btn green" onclick="setScenario('AUTO')">Auto Day/Night (LDR)</button>
+                <button class="sc-btn" onclick="setScenario('DELESTAGE')">Load Shedding</button>
+                <button class="sc-btn purple" onclick="setScenario('EVENEMENT')">Stadium Event</button>
+                <button class="sc-btn" onclick="setScenario('METEO')" style="border-color:rgba(34,211,238,0.3);">Weather</button>
+            </div>
+
+            <div id="delestageSection" style="display:none;">
+                <div class="mode-label">Load Shedding Modes (Manual power control)</div>
+                <div id="delestageSuggestion" style="display:none; margin-bottom:8px; padding:6px 12px; border-radius:8px; font-size:0.72rem; font-weight:500; background:rgba(251,191,36,0.08); color:var(--yellow); border:1px solid rgba(251,191,36,0.15);">
+                    <span id="suggestionText">--</span>
+                </div>
+                <div class="mode-grid">
+                    <button class="sc-btn green" onclick="setDelestageMode('NORMAL')">Normal</button>
+                    <button class="sc-btn yellow" onclick="setDelestageMode('ALERTE')">Alert</button>
+                    <button class="sc-btn orange" onclick="setDelestageMode('CRITIQUE')">Critical</button>
+                    <button class="sc-btn red" onclick="setDelestageMode('URGENCE')">Emergency</button>
+                    <button class="sc-btn red" onclick="setDelestageMode('BLACKOUT')">Blackout</button>
+                </div>
+            </div>
+
+            <!-- Event time configuration -->
+            <div id="evtTimeSection" style="display:none;">
+                <div class="mode-label">Stadium Event Configuration</div>
+                <div class="evt-time-row">
+                    <label>Start:</label>
+                    <input type="time" class="evt-time-input" id="evtStartTime" value="18:00">
+                    <label>End:</label>
+                    <input type="time" class="evt-time-input" id="evtEndTime" value="22:00">
+                    <button class="sc-btn purple" onclick="applyEvtTime()" style="padding:6px 14px;font-size:0.72rem;">Schedule</button>
+                    <button class="sc-btn red" onclick="cancelEvt()" style="padding:6px 14px;font-size:0.72rem;">Cancel</button>
+                </div>
+                <div class="evt-note">
+                    <strong>Rule:</strong> If event is <b>before 4 PM</b>, the industrial zone (motors) retains normal power.<br>
+                    If <b>after 4 PM</b>, the industrial zone can be reduced (min 70% — motor threshold).<br>
+                    The <b>PRE-EVENT</b> phase starts automatically 30 min before start time.
+                    <br><span id="evtTimeInfo" style="color:var(--purple);margin-top:4px;display:block;">—</span>
+                </div>
+            </div>
+
+            <!-- Weather info -->
+            <div id="meteoSection" style="display:none;">
+                <div class="mode-label">Weather Scenario — Automatic BME680 Adaptation</div>
+                <div class="evt-note" style="border-left-color:var(--cyan);">
+                    The system automatically adjusts zones based on environmental conditions:<br>
+                    <b>Heat</b> (>35°C) → max ventilation, reduced lighting<br>
+                    <b>Cold</b> (<5°C) → max residential + street lighting<br>
+                    <b>Humidity</b> (>80%) → increased ventilation<br>
+                    <b>Storm</b> (<1000 hPa) → safety mode, max street lighting<br>
+                    <b>Fair Weather</b> (>1025 hPa) → outdoor energy saving mode
+                </div>
+            </div>
+        </div>
+
+        <div class="card c5">
+            <div class="card-h"><h2>MQTT Console</h2></div>
+            <div class="console" id="console"></div>
+        </div>
+        <div class="section-title">Zone Component Control</div>
+
+        <div class="card c12">
+            <div class="card-h"><h2>Zones & Loads</h2><span class="topic">smartgrid/led*/brightness · smartgrid/moteur/brightness</span></div>
+
+            <div class="comp-row" id="row-led1">
+                <div class="comp-dot"></div>
+                <span class="comp-name">Residential<span class="comp-topic">smartgrid/led1</span></span>
+                <button class="comp-toggle" onclick="toggleComp('led',1)">OFF</button>
+                <input type="range" class="comp-slider" min="0" max="100" value="0" oninput="setSlider('led',1,this.value)">
+                <span class="comp-pct" id="pct-led1">0%</span>
+            </div>
+            <div class="comp-row" id="row-led2">
+                <div class="comp-dot"></div>
+                <span class="comp-name">Commercial<span class="comp-topic">smartgrid/led2</span></span>
+                <button class="comp-toggle" onclick="toggleComp('led',2)">OFF</button>
+                <input type="range" class="comp-slider" min="0" max="100" value="0" oninput="setSlider('led',2,this.value)">
+                <span class="comp-pct" id="pct-led2">0%</span>
+            </div>
+            <div class="comp-row" id="row-led3">
+                <div class="comp-dot"></div>
+                <span class="comp-name">Stadium<span class="comp-topic">smartgrid/led3</span></span>
+                <button class="comp-toggle" onclick="toggleComp('led',3)">OFF</button>
+                <input type="range" class="comp-slider" min="0" max="100" value="0" oninput="setSlider('led',3,this.value)">
+                <span class="comp-pct" id="pct-led3">0%</span>
+            </div>
+            <div class="comp-row" id="row-led4">
+                <div class="comp-dot"></div>
+                <span class="comp-name">Street / Public<span class="comp-topic">smartgrid/led4</span></span>
+                <button class="comp-toggle" onclick="toggleComp('led',4)">OFF</button>
+                <input type="range" class="comp-slider" min="0" max="100" value="0" oninput="setSlider('led',4,this.value)">
+                <span class="comp-pct" id="pct-led4">0%</span>
+            </div>
+            <div class="comp-row" id="row-moteur" style="margin-top:4px; border-color:rgba(167,139,250,0.15);">
+                <div class="comp-dot"></div>
+                <span class="comp-name">Industrial (Motors)<span class="comp-topic">smartgrid/moteur</span></span>
+                <button class="comp-toggle" onclick="toggleComp('moteur',0)">OFF</button>
+                <input type="range" class="comp-slider" min="0" max="100" value="0" oninput="setSlider('moteur',0,this.value)">
+                <span class="comp-pct" id="pct-moteur">0%</span>
+            </div>
+            <div style="font-size:0.62rem; color:var(--t3); margin-top:6px; padding-left:4px;">
+                Industrial Zone: minimum motor threshold = <b style="color:var(--orange)">70%</b> — below this, motors will not operate.
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+const BROKER = 'wss://broker.hivemq.com:8884/mqtt';
+const CID = 'SG_Dash2_' + Math.random().toString(16).substr(2, 8);
+let client = null;
+
+let compState = {
+    led1:   { on: false, pct: 0 },
+    led2:   { on: false, pct: 0 },
+    led3:   { on: false, pct: 0 },
+    led4:   { on: false, pct: 0 },
+    moteur: { on: false, pct: 0 }
+};
+
+let currentScenario = '--';
+let energyModeAuto = true;
+let currentSource = 'GRID';
+const MOTEUR_MIN = 70; // minimum threshold for motors
+function connectMQTT() {
+    log('sys', 'Connecting to HiveMQ broker...');
+    client = mqtt.connect(BROKER, { clientId: CID, clean: true, reconnectPeriod: 5000 });
+
+    client.on('connect', () => {
+        document.getElementById('mqttDot').classList.add('on');
+        document.getElementById('mqttSt').textContent = 'Connected';
+        log('sys', 'Connected to HiveMQ ✓');
+        client.subscribe('smartgrid/#');
+    });
+
+    client.on('message', (topic, msg) => handleMsg(topic, msg.toString().trim()));
+
+    client.on('close', () => {
+        document.getElementById('mqttDot').classList.remove('on');
+        document.getElementById('mqttSt').textContent = 'Disconnected';
+    });
+}
+function handleMsg(topic, msg) {
+    const v = parseFloat(msg);
+    if (topic === 'smartgrid/voltage') {
+        document.getElementById('voltage').textContent = v.toFixed(2);
+        document.getElementById('voltBar').style.width = Math.min(v / 14 * 100, 100) + '%';
+    }
+    else if (topic === 'smartgrid/current') {
+        document.getElementById('current').textContent = v.toFixed(1);
+        document.getElementById('curBar').style.width = Math.min(v / 500 * 100, 100) + '%';
+    }
+    else if (topic === 'smartgrid/power') {
+        document.getElementById('power').textContent = v.toFixed(1);
+        document.getElementById('pwrBar').style.width = Math.min(v / 3000 * 100, 100) + '%';
+    }
+    else if (topic === 'smartgrid/ldr') {
+        document.getElementById('ldrVal').textContent = Math.round(v);
+        const pct = ((4095 - v) / 4095) * 100;
+        document.getElementById('ldrBar').style.width = pct + '%';
+        const mEl = document.getElementById('ldrMode');
+        const iEl = document.getElementById('ldrIco');
+        mEl.className = 'ldr-m';
+        if (v < 1000) {
+            mEl.textContent = 'DAY'; mEl.classList.add('jour'); if (iEl) iEl.textContent = '';
+        } else if (v < 2000) {
+            mEl.textContent = 'DUSK'; mEl.classList.add('crep'); if (iEl) iEl.textContent = '';
+        } else {
+            mEl.textContent = 'NIGHT'; mEl.classList.add('nuit'); if (iEl) iEl.textContent = '';
+        }
+    }
+    else if (topic === 'smartgrid/meteo/temperature') {
+        document.getElementById('envTemp').textContent = v.toFixed(1);
+        checkEnvAlerts();
+    }
+    else if (topic === 'smartgrid/meteo/humidite') {
+        document.getElementById('envHumid').textContent = v.toFixed(1);
+        checkEnvAlerts();
+    }
+    else if (topic === 'smartgrid/meteo/pression') {
+        document.getElementById('envPress').textContent = v.toFixed(1);
+        checkEnvAlerts();
+    }
+    else if (topic === 'smartgrid/meteo/gaz') {
+        document.getElementById('envGaz').textContent = v.toFixed(1);
+    }
+    else if (topic === 'smartgrid/meteo/alerte') {
+        const alertEl = document.getElementById('envAlert');
+        const alertText = document.getElementById('envAlertText');
+        const alertIcon = document.getElementById('envAlertIcon');
+        alertEl.className = 'env-alert show';
+        const alertMap = {
+            'CHALEUR':   { text: 'Heat alert — increased ventilation', cls: 'danger', ico: '' },
+            'FROID':     { text: 'Cold alert — heating activated',        cls: 'warn',   ico: '' },
+            'HUMIDITE':  { text: 'High humidity detected',              cls: 'warn',   ico: '' },
+            'TEMPETE':   { text: 'Low pressure — storm risk',    cls: 'danger', ico: '' },
+            'BEAU_TEMPS':{ text: 'High pressure — fair weather',           cls: 'info',   ico: '' }
+        };
+        const info = alertMap[msg] || { text: msg, cls: 'warn', ico: '' };
+        alertEl.classList.add(info.cls);
+        alertText.textContent = info.text;
+        if (alertIcon) alertIcon.textContent = info.ico;
+        log('sys', 'Weather: ' + info.text);
+    }
+    else if (topic === 'smartgrid/energy/source') {
+        currentSource = msg;
+        const s = document.getElementById('nrjSource');
+        const b = document.getElementById('nrjBadge');
+        const ic = document.getElementById('nrjIcon');
+        s.className = 'nrj-source'; b.className = 'nrj-badge';
+        if (msg === 'SOLAR') {
+            s.textContent = 'SOLAR'; s.classList.add('solar');
+            b.textContent = 'NO — Solar Panel'; b.classList.add('solar');
+            if (ic) ic.textContent = '';
+        } else {
+            s.textContent = 'GRID'; s.classList.add('grid');
+            b.textContent = 'NC — 12V Grid Power'; b.classList.add('grid');
+            if (ic) ic.textContent = '';
+        }
+        updateEnergyButtons();
+        log('in', 'Source: ' + msg);
+    }
+    else if (topic === 'smartgrid/energy/battery_voltage') {
+        document.getElementById('nrjBatV').textContent = v.toFixed(2) + 'V';
+        const pct = Math.min(Math.max((v - 3.0) / 1.2 * 100, 0), 100);
+        document.getElementById('nrjBatBar').style.width = pct + '%';
+        const bIcon = document.getElementById('nrjBatIcon');
+        if (bIcon) bIcon.textContent = '';
+    }
+    else if (topic === 'smartgrid/energy/battery_status') {
+        const el = document.getElementById('nrjBatStatus');
+        el.textContent = msg;
+        el.className = 'nrj-bat-status';
+        const cls = { 'PLEINE': 'pleine', 'MOYENNE': 'moyenne', 'FAIBLE': 'faible', 'VIDE': 'vide' };
+        el.classList.add(cls[msg] || 'moyenne');
+    }
+    else if (topic === 'smartgrid/energy/mode_status') {
+        energyModeAuto = (msg === 'AUTO');
+        updateEnergyButtons();
+    }
+    else if (topic === 'smartgrid/scenario/actuel') {
+        currentScenario = msg;
+        const mb = document.getElementById('modeBadge');
+        if (mb) mb.textContent = msg;
+        updateScenarioBtns(msg);
+    }
+    else if (topic === 'smartgrid/delestage/niveau') {
+        updateDelestageBtns(msg);
+        log('sys', 'Load Shedding level: ' + msg);
+    }
+    else if (topic === 'smartgrid/delestage/suggestion') {
+        const niveaux = ['Normal', 'Alert', 'Critical', 'Emergency', 'Blackout'];
+        const n = parseInt(msg);
+        const el = document.getElementById('delestageSuggestion');
+        const txt = document.getElementById('suggestionText');
+        if (currentScenario === 'DELESTAGE' && n > 0) {
+            el.style.display = 'block';
+            txt.textContent = 'Recommendation: switch to level ' + niveaux[n] + ' (based on measured power)';
+        } else {
+            el.style.display = 'none';
+        }
+    }
+    else if (topic === 'smartgrid/delestage/erreur') {
+        log('err', 'Load Shedding rejected — active scenario ≠ Load Shedding');
+    }
+    else if (topic.match(/smartgrid\/led(\d)\/duty/)) {
+        const n = topic.match(/led(\d)/)[1];
+        const pct = parseInt(msg);
+        compState['led' + n].pct = pct;
+        updateCompUI('led', parseInt(n), pct, pct > 0);
+    }
+    else if (topic.match(/smartgrid\/led(\d)\/state/)) {
+        const n = topic.match(/led(\d)/)[1];
+        const isOn = msg === 'ON';
+        compState['led' + n].on = isOn;
+        const row = document.getElementById('row-led' + n);
+        if (row) { isOn ? row.classList.add('on') : row.classList.remove('on'); }
+    }
+    else if (topic === 'smartgrid/moteur/duty') {
+        const pct = parseInt(msg);
+        compState.moteur.pct = pct;
+        updateCompUI('moteur', 0, pct, pct > 0);
+    }
+    else if (topic === 'smartgrid/moteur/state') {
+        const isOn = msg === 'ON';
+        compState.moteur.on = isOn;
+        const row = document.getElementById('row-moteur');
+        if (row) { isOn ? row.classList.add('on') : row.classList.remove('on'); }
+    }
+    else if (topic === 'smartgrid/anomalie/type') { log('err', 'ANOMALY: ' + msg); }
+    else if (topic === 'smartgrid/anomalie/valeur') { log('err', 'Anomaly value: ' + msg); }
+    else if (topic === 'smartgrid/evenement/phase') {
+        const phaseMap = { 'AVANT': 'Preparation', 'PENDANT': 'In Progress', 'FIN': 'Completed', 'ANNULE': 'Canceled' };
+        const info = document.getElementById('evtTimeInfo');
+        if (info) info.textContent = 'Current phase: ' + (phaseMap[msg] || msg);
+        log('sys', 'Stadium Event: ' + (phaseMap[msg] || msg));
+    }
+    else if (topic === 'smartgrid/periode') { log('sys', 'Period: ' + msg); }
+}
+function checkEnvAlerts() {
+    const t = parseFloat(document.getElementById('envTemp').textContent);
+    const h = parseFloat(document.getElementById('envHumid').textContent);
+    const p = parseFloat(document.getElementById('envPress').textContent);
+    if (isNaN(t)) return;
+    const alertEl = document.getElementById('envAlert');
+    const alertText = document.getElementById('envAlertText');
+    const alertIcon = document.getElementById('envAlertIcon');
+    if (t > 35) {
+        alertEl.className = 'env-alert show danger';
+        alertText.textContent = 'High temperature: ' + t.toFixed(1) + '°C';
+        if (alertIcon) alertIcon.textContent = '';
+    } else if (t < 5) {
+        alertEl.className = 'env-alert show warn';
+        alertText.textContent = 'Low temperature: ' + t.toFixed(1) + '°C';
+        if (alertIcon) alertIcon.textContent = '';
+    } else if (h > 80) {
+        alertEl.className = 'env-alert show warn';
+        alertText.textContent = 'High humidity: ' + h.toFixed(1) + '%';
+        if (alertIcon) alertIcon.textContent = '';
+    } else if (p < 1000) {
+        alertEl.className = 'env-alert show danger';
+        alertText.textContent = 'Low pressure: ' + p.toFixed(1) + ' hPa — storm risk';
+        if (alertIcon) alertIcon.textContent = '';
+    } else {
+        alertEl.className = 'env-alert';
+    }
+}
+function setEnergyMode(mode) {
+    if (client && client.connected) {
+        client.publish('smartgrid/energy/mode', mode);
+        energyModeAuto = (mode === 'AUTO');
+        updateEnergyButtons();
+        log('out', 'Energy mode → ' + mode);
+    }
+}
+function selectSource(source) {
+    if (energyModeAuto) return;
+    if (client && client.connected) {
+        client.publish('smartgrid/energy/select', source);
+        log('out', 'Manual source → ' + source);
+    }
+}
+function updateEnergyButtons() {
+    const bA = document.getElementById('btnEnergyAuto');
+    const bM = document.getElementById('btnEnergyManuel');
+    const bS = document.getElementById('btnSelectSolar');
+    const bG = document.getElementById('btnSelectGrid');
+    bA.className = 'nrj-btn' + (energyModeAuto ? ' active-auto' : '');
+    bM.className = 'nrj-btn' + (!energyModeAuto ? ' active-auto' : '');
+    bS.disabled = energyModeAuto; bG.disabled = energyModeAuto;
+    bS.className = 'nrj-btn' + (!energyModeAuto && currentSource === 'SOLAR' ? ' active-solar' : '');
+    bG.className = 'nrj-btn' + (!energyModeAuto && currentSource === 'GRID' ? ' active-grid' : '');
+    bS.style.opacity = energyModeAuto ? '0.3' : '1';
+    bG.style.opacity = energyModeAuto ? '0.3' : '1';
+}
+function setScenario(name) {
+    if (client && client.connected) {
+        client.publish('smartgrid/scenario', name);
+        log('out', 'Scenario → ' + name);
+        // Show/hide conditional sections
+        document.getElementById('evtTimeSection').style.display = (name === 'EVENEMENT') ? 'block' : 'none';
+        document.getElementById('delestageSection').style.display = (name === 'DELESTAGE') ? 'block' : 'none';
+        document.getElementById('meteoSection').style.display = (name === 'METEO') ? 'block' : 'none';
+    }
+}
+
+function setDelestageMode(mode) {
+    if (client && client.connected) {
+        client.publish('smartgrid/delestage/mode', mode);
+        log('out', 'Load Shedding → ' + mode);
+    }
+}
+
+function updateScenarioBtns(scenario) {
+    // Clear all scenario buttons
+    document.querySelectorAll('.sc-grid .sc-btn').forEach(b => b.classList.remove('active'));
+    const map = {
+        'MANUEL': 'Manual', 'AUTO': 'Auto Day/Night (LDR)', 'DELESTAGE': 'Load Shedding',
+        'EVENEMENT': 'Stadium Event', 'METEO': 'Weather'
+    };
+    document.querySelectorAll('.sc-grid .sc-btn').forEach(b => {
+        if (b.textContent.includes(map[scenario])) b.classList.add('active');
+    });
+    // Show/hide conditional sections
+    document.getElementById('evtTimeSection').style.display = (scenario === 'EVENEMENT') ? 'block' : 'none';
+    document.getElementById('delestageSection').style.display = (scenario === 'DELESTAGE') ? 'block' : 'none';
+    document.getElementById('meteoSection').style.display = (scenario === 'METEO') ? 'block' : 'none';
+}
+
+function updateDelestageBtns(niveau) {
+    document.querySelectorAll('.mode-grid .sc-btn').forEach(b => b.classList.remove('active'));
+    const map = {
+        'NORMAL': 'Normal', 'ALERTE': 'Alert', 'CRITIQUE': 'Critical',
+        'URGENCE': 'Emergency', 'BLACKOUT': 'Blackout'
+    };
+    document.querySelectorAll('.mode-grid .sc-btn').forEach(b => {
+        if (b.textContent.includes(map[niveau])) b.classList.add('active');
+    });
+}
+function applyEvtTime() {
+    const start = document.getElementById('evtStartTime').value;
+    const end = document.getElementById('evtEndTime').value;
+    if (!start || !end) { log('err', 'Please enter start and end times'); return; }
+    const startHour = parseInt(start.split(':')[0]);
+    const info = document.getElementById('evtTimeInfo');
+
+    if (startHour < 16) {
+        info.textContent = 'Event scheduled ' + start + ' → ' + end + ' — before 4 PM: industrial zone maintained at 100%';
+    } else {
+        info.textContent = 'Event scheduled ' + start + ' → ' + end + ' — after 4 PM: industrial zone reduced to 70% min';
+    }
+
+    // Publish single config topic: "HH:MM,HH:MM"
+    if (client && client.connected) {
+        client.publish('smartgrid/evenement/config', start + ',' + end);
+        log('out', 'Event scheduled: ' + start + ' → ' + end);
+    }
+}
+
+function cancelEvt() {
+    if (client && client.connected) {
+        client.publish('smartgrid/evenement/annuler', '1');
+        document.getElementById('evtTimeInfo').textContent = 'Event canceled — returned to AUTO';
+        log('out', 'Event canceled');
+    }
+}
+function updateCompUI(type, num, pct, isOn) {
+    const id = type === 'moteur' ? 'moteur' : type + num;
+    const row = document.getElementById('row-' + id);
+    const pctEl = document.getElementById('pct-' + id);
+    const slider = row ? row.querySelector('.comp-slider') : null;
+    const toggleBtn = row ? row.querySelector('.comp-toggle') : null;
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (slider) slider.value = pct;
+    if (row) { isOn ? row.classList.add('on') : row.classList.remove('on'); }
+    if (toggleBtn) toggleBtn.textContent = isOn ? 'ON' : 'OFF';
+}
+
+function toggleComp(type, num) {
+    const id = type === 'moteur' ? 'moteur' : type + num;
+    const state = compState[id];
+    const newState = !state.on;
+    if (client && client.connected) {
+        const topic = type === 'moteur' ? 'smartgrid/moteur' : 'smartgrid/led' + num;
+        client.publish(topic, newState ? 'ON' : 'OFF');
+        const displayName = type === 'moteur' ? 'Industrial' :
+            num === 1 ? 'Residential' : num === 2 ? 'Commercial' : num === 3 ? 'Stadium' : 'Street';
+        log('out', displayName + ': ' + (newState ? 'ON' : 'OFF'));
+    }
+    state.on = newState;
+    state.pct = newState ? (type === 'moteur' ? MOTEUR_MIN : 100) : 0;
+    updateCompUI(type, num, state.pct, newState);
+}
+
+function setSlider(type, num, val) {
+    const id = type === 'moteur' ? 'moteur' : type + num;
+    let pct = parseInt(val);
+
+    // Enforce motor minimum: if > 0 but < 70, snap to 70
+    if (type === 'moteur' && pct > 0 && pct < MOTEUR_MIN) {
+        pct = MOTEUR_MIN;
+        const row = document.getElementById('row-moteur');
+        if (row) row.querySelector('.comp-slider').value = pct;
+    }
+
+    compState[id].pct = pct;
+    compState[id].on = pct > 0;
+    if (client && client.connected) {
+        const topic = type === 'moteur' ? 'smartgrid/moteur/brightness' : 'smartgrid/led' + num + '/brightness';
+        client.publish(topic, String(pct));
+    }
+    updateCompUI(type, num, pct, pct > 0);
+}
+function log(type, text) {
+    const el = document.getElementById('console');
+    const now = new Date().toLocaleTimeString('en-US');
+    const pre = { in: '📥', out: '📤', sys: '⚙️', err: '❌' }[type] || '•';
+    const cls = { in: 'l-i', out: 'l-o', sys: 'l-s', err: 'l-e' }[type] || '';
+    el.innerHTML += `<div><span class="l-t">[${now}]</span> <span class="${cls}">${pre} ${text}</span></div>`;
+    el.scrollTop = el.scrollHeight;
+    while (el.childElementCount > 100) el.removeChild(el.firstChild);
+}
+setInterval(() => {
+    const clockEl = document.getElementById('clock');
+    if (clockEl) clockEl.textContent = new Date().toLocaleTimeString('en-US');
+}, 1000);
+connectMQTT();
+function notifyHeight() {
+    const h = document.documentElement.scrollHeight || document.body.scrollHeight;
+    window.parent.postMessage({ type: 'FRAME_RESIZE', height: h }, '*');
+}
+window.addEventListener('load', notifyHeight);
+window.addEventListener('resize', notifyHeight);
+if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(notifyHeight).observe(document.body);
+}
+
+window.addEventListener('message', (event) => {
+    if (event.data && event.data.topic && event.data.msg !== undefined) {
+        handleMsg(event.data.topic, event.data.msg);
+        
+        // Update the visual MQTT connection status to simulated
+        const dot = document.getElementById('mqttDot');
+        const st = document.getElementById('mqttSt');
+        if (dot && st && !client?.connected) {
+            dot.classList.add('on');
+            st.textContent = 'Simulated (Local)';
+        }
+    }
+});
+</script>
+</body>
+</html>

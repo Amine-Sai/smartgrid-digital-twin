@@ -1,0 +1,65 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --font-sans: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, monospace;
+
+  --blue:    #38bdf8;
+  --purple:  #a78bfa;
+  --green:   #4ade80;
+  --orange:  #fb923c;
+  --red:     #f87171;
+
+  --bg-base:     #060d1a;
+  --bg-surface:  #0d1b2e;
+  --bg-card:     #111f35;
+  --bg-elevated: #162845;
+  --border:      rgba(255,255,255,0.07);
+
+  --text-primary:   #f0f6ff;
+  --text-secondary: #7a97bc;
+  --text-muted:     #3f5878;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg-base);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--text-primary);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#root {
+  height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  text-align: left;
+  display: flex;
+}
+
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.glow-blue   { box-shadow: 0 0 20px rgba(56,189,248,0.15); }
+.glow-purple { box-shadow: 0 0 20px rgba(167,139,250,0.15); }
+.glow-green  { box-shadow: 0 0 20px rgba(74,222,128,0.15); }
+
+.recharts-wrapper { font-family: var(--font-sans) !important; }
+.recharts-cartesian-axis-tick-value { fill: #3f5878 !important; font-size: 11px !important; }
+.recharts-legend-item-text { color: #7a97bc !important; font-size: 12px !important; }
